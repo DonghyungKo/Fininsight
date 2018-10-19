@@ -263,6 +263,15 @@ class NLP(object):
         vocab = tfidf_vectorizer.get_feature_names()
 
         tfidf_df = pd.DataFrame(tfidf_array, columns = vocab)
-        keyword_ls = tfidf_df.idxmax(axis=1)
         
-        return tfidf_df, keyword_ls
+        # 각 documents 별로, 1순위 키워드가 담긴 list
+        first_keyword_ls = tfidf_df.idxmax(axis=1)
+        
+        # 각 documents 별로, 2순위 키워드가 담긴 list
+        second_keyword_ls = [row.sort_values(ascending =False).index[1] for index, row in tfidf_df.iterrows()]
+        second_keyword_ls.append(tfidf_df.iloc[-1,:].sort_values(ascending =False).index[1])
+                
+        
+        return tfidf_df, first_keyword_ls, second_keyword_ls
+    
+    

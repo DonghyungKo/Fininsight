@@ -1,0 +1,6 @@
+project/Doc2Vec_model/
+project/Data/
+project/.ipynb_checkpoints/
+project/.ipynb
+.ipynb_checkpoints/
+project/__pycache__/

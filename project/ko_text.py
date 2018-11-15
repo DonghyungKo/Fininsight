@@ -115,32 +115,47 @@ class NLP(object):
         return text_ls
 
     
-    def _extract_nouns_for_single_doc(self, doc_ls):
-        return [x for x in self.twit.noun(doc) if len(x) > 1]
- 
+    def _extract_nouns_for_single_doc(self, doc):
+        return [x for x in self.twit.nouns(doc) if len(x) > 1]
 
     def _extract_morphs_for_single_doc(self, doc):
         return [x for x in self.twit.morphs(doc) if len(x) > 1]
 
     
-    def extract_nowns_for_each_document(self,doc_ls):
+    
+    def extract_nouns_for_all_document(self,doc_ls):
+        jpype.attachThreadToJVM()
         clean_doc_ls = self.clean_doc(doc_ls)
         return [self._extract_nouns_for_single_doc(doc) for doc in clean_doc_ls]
  
 
-    def extract_morphs_for_each_document(self, doc_ls):
+    def extract_morphs_for_all_document(self, doc_ls):
         jpype.attachThreadToJVM()
         clean_doc_ls = self.clean_doc(doc_ls)
         return [self._extract_morphs_for_single_doc(doc) for doc in clean_doc_ls]
         
 
+    
+    def _extract_nouns_for_multiprocessing(self, tuple_ls):
+        jpype.attachThreadToJVM()
+        # 멀티프로세싱의 경우, 병렬처리시 순서가 뒤섞이는 것을 방지하기위해,
+        # [(idx, doc)] 형태의 tuple이 들어온다.
+        return [(idx, self._extract_nouns_for_single_doc(doc)) for idx, doc in tuple_ls]
+        
+        
     def _extract_morphs_for_multiprocessing(self, tuple_ls):
         jpype.attachThreadToJVM()
         # 멀티프로세싱의 경우, 병렬처리시 순서가 뒤섞이는 것을 방지하기위해,
         # [(idx, doc)] 형태의 tuple이 들어온다.
         return [(idx, self._extract_morphs_for_single_doc(doc)) for idx, doc in tuple_ls]
                   
-    def extract_morphs_for_each_document_FAST_VERSION(self, doc_ls, n_thread = 4):
+        
+                  
+        
+    def extract_tokens_for_all_document_FAST_VERSION(self, 
+                                                     doc_ls, 
+                                                     n_thread = 4,
+                                                     if_morphs = True):
         jpype.attachThreadToJVM()
 
         '''
@@ -161,8 +176,11 @@ class NLP(object):
         thread_ls = []
         
         for tuple_ls in splited_clean_tuple_ls:
-            temp_thread = Thread(target= lambda q, arg1: q.put(self._extract_morphs_for_multiprocessing(arg1)),  args = (que, tuple_ls))
-            
+            if if_morphs:
+                temp_thread = Thread(target= lambda q, arg1: q.put(self._extract_morphs_for_multiprocessing(arg1)),  args = (que, tuple_ls))
+            else:
+                temp_thread = Thread(target= lambda q, arg1: q.put(self._extract_nouns_for_multiprocessing(arg1)),  args = (que, tuple_ls))
+                
             temp_thread.start()
             thread_ls.append(temp_thread)
 
@@ -233,88 +251,6 @@ class NLP(object):
                 
         return batch_X_ls, batch_y_ls
         
-        
-    
-    
-    
-    def split_X_y_equally(self, X, Y, batch_size):
-        
-        '''
-        분할 학습을 위해, 동일한 비율의 label로 분리하는 함수입니다.
-        
-        Inputs:
-        - X : iterable, pandas_DataFrame, : Feature
-        - Y : iterable, : Label
-        - n_size : int, size of one batch
-        
-        return : split_X_ls, split_Y_ls
-        '''
-        
-        if type(X) == list:    
-            pass
-        
-        # 전체의 사이즈와 동일한 값이 input으로 들어오면 그대로 return
-        if batch_size == len(X):
-            return X,Y
-        
-        
-        elif type(X) == pd.DataFrame:
-            # index 초기화
-            X.index = [i for i in range(len(X))]
-            
-            temp_ls = []
-            for _, row in X.iterrows():
-                temp_ls += [row.tolist()]
-            X = temp_ls
-        
-        # unique한 y의 수를 계산
-        unique_y_ls = list(set(Y))
-        
-        # 각 y_label(key)에 따라 (y_label, X)형태의 튜플이 담긴 dictionary를 생성합니다.
-        # key : y_label
-        # value : [(y_label , X_val) 형태]
-        y_dict = {}
-        
-        for idx, y in enumerate(Y):
-            try:  y_dict[y] += [(y, X[idx])]
-            except : y_dict[y] = [(y, X[idx])]
-        
-        # 총 batch의 갯수
-        n_batch = len(Y) // batch_size
-        
-        # sub_batch(모여서 하나의 total_batch를 이룸)에 들어가는 자료의 수
-        k = batch_size//len(unique_y_ls)
-        
-        # y_label별로 X값이 모여진 list를 k개씩 분할하여, n_batch개의 sub-batch를 만든다..
-        for y_label in unique_y_ls:
-            y_dict[y_label] = self.split_list(y_dict[y_label], k)
-            
-            
-        # 각 y_label별로 sub-batch를 하나씩 가져와 하나의 one_full_batch를 만듭니다.
-        total_ls = []
-        
-        for batch_idx in range(n_batch):
-            temp_ls = []
-            
-            for unique_y in unique_y_ls:
-                temp_ls += y_dict[unique_y][batch_idx]
-            
-            total_ls += [temp_ls]
-            
-        # total_ls의 shape : [n_chunks *   [n_size * [(section, token)]]    ]
-        splited_X_ls = []
-        splited_Y_ls = []
-
-        for batch in total_ls:
-            splited_X_ls += [[tuple_[1] for tuple_ in batch]]
-            splited_Y_ls += [[tuple_[0] for tuple_ in batch]]
-        
-        return splited_X_ls, splited_Y_ls
-        
-            
-    
-    
-    
     
     
     
@@ -350,9 +286,9 @@ class NLP(object):
             tokenized_doc_ls = doc_ls
         else:
             if if_morphs :
-                tokenized_doc_ls = self.extract_morphs_for_each_document_FAST_VERSION(doc_ls)
+                tokenized_doc_ls = self.extract_tokens_for_all_document_FAST_VERSION(doc_ls, if_morphs = True)
             else :
-                tokenized_doc_ls = self.extract_nowns_for_each_document_FAST_VERSION(doc_ls)
+                tokenized_doc_ls = self.extract_tokens_for_all_document_FAST_VERSION(doc_ls, if_morphs = False)
 
         corpus_for_tfidf_ls = [' '.join(x) for x in tokenized_doc_ls]
         
@@ -472,9 +408,9 @@ class NLP(object):
         else:
             clean_train_doc_ls = self.clean_doc(train_doc_ls)
             if if_morphs:
-                train_token_ls = self.extract_morphs_for_each_document_FAST_VERSION(clean_train_doc_ls)
-            else :
-                train_token_ls = self.extract_nowns_for_each_document_FAST_VERSION(clean_train_doc_ls)
+                train_token_ls = self.extract_tokens_for_all_document_FAST_VERSION(clean_train_doc_ls, if_morphs = True)
+            else:
+                train_token_ls = self.extract_tokens_for_all_document_FAST_VERSION(clean_train_doc_ls, if_morphs = False)
         
         # train_tag_ls를 리스트 형태로 변환 (Series 형태로 들어올 경우)
         try:  train_tag_ls = train_tag_ls.tolist()
@@ -524,9 +460,9 @@ class NLP(object):
         else:
             clean_train_doc_ls = self.clean_doc(train_doc_ls)
             if if_morphs:
-                train_token_ls = self.extract_morphs_for_each_document_FAST_VERSION(clean_train_doc_ls)
+                train_token_ls = self.extract_tokens_for_all_document_FAST_VERSION(clean_train_doc_ls, if_morphs = True)
             else :
-                train_token_ls = self.extract_nowns_for_each_document_FAST_VERSION(clean_train_doc_ls)
+                train_token_ls = self.extract_tokens_for_all_document_FAST_VERSION(clean_train_doc_ls, if_morphs = False)
         
         # train_tag_ls를 리스트 형태로 변환 (Series 형태로 들어올 경우)
         try:  train_tag_ls = train_tag_ls.tolist()

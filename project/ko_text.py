@@ -80,28 +80,23 @@ class NLP(object):
     
     # 크롤링한 text에서 불필요한 부분들을 제거하는 함수입니다.
     def _clean_text(self,text):
-    
-        # () 와 [], <>로 감싸진 부분들은 전부 제거
         text = re.sub('\(.+?\)', '',string = text)
         text = re.sub('\[.+?\]', '',string = text)
         text = re.sub('\<.+?\>', '',string = text)
         text = re.sub('◀.+?▶', '',string = text)
-        text = re.sub('[\{\}\[\]\/?.,;:|\)*~`!^\-_+<>@▲▶◆\#$%&\\\=\(\'\"]', '' , text) # 특수문자 제거
-        text = re.sub('... 기자', '', text)   # 기자라는 단어도 제거
+        text = re.sub('[\{\}\[\]\/?.,;:|\)*~`!^\-_+<>@▲▶◆\#$%┌─┐&\\\=\(\'\"├┼┤│┬└┴┘|ⓒ]', '' , text) # 특수문자 제거
+        text = re.sub('[\t\n\r\f\v]', ' ' , text)   # 공백 제거
+
+        # 년월일, 시분 제거 및 숫자 제거
+        text = re.sub('[0-9]+[년월분일시조억만천원]*', '',text)
+
+        # 문서의 특성에 맞춰 따로 제거 
+        text = re.sub('기자', '', text)   # 기자라는 단어도 제거
         text = re.sub('여기를 누르시면 크게 보실 수 있습니다', '', text)   # 여기를 누르시면 크게 보실 수 있습니다 제거
-        text = re.sub('\n', '', text)
-        text = re.sub('\t', '', text)
-        text = re.sub('\r', '', text)
-        text = re.sub('                  ', ' ', text)
-        text = re.sub('┌───────────┬─────┬───────────┬─────┐',' ', text)
-        text = re.sub('├───────────┼─────┼───────────┼─────┤', ' ', text)
-        text = re.sub('│├──┼───────┼─────┼────────────────────┤│', ' ', text)
-        text = re.sub('└───────────┴─────┴───────────┴─────┘',' ',text)
-        text = re.sub('Copyrights ⓒ 연합뉴스 무단 전재 및 재배포금지', '', text)
-        text = re.sub('googletagdisplay', '', text)
-        text = re.sub('documentwrite', '', text)
-        text = re.sub('windowjQuery', '', text)
-        
+        text = re.sub('[a-zA-Z]+', '', text)
+        text = re.sub('연합뉴스', '', text)
+        text = re.sub('무단.+금지', '', text)
+
         return text
     
     

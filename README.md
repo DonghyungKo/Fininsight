@@ -58,14 +58,30 @@ NLP.build_and_train_Doc2Vec_model : build & train 작업 동시에 수행
 ~~~
 
 + #### **학습 결과**
-![](images/4.png) 
+![](images/4.png)
 
 
-### **파라미터 튜닝**
-> Doc2Vec 파라미터 튜닝을 위해, default Logistic Regression을 사용
+### **Doc2Vec 파라미터 튜닝**
+> **Doc2Vec 파라미터 튜닝을 위해, default의 Logistic Regression을 사용**
 
- + #### **결과**
-   - 문서 수 : 약 10,000개
-   ![](.png)
+<br>
 
-   - 문서 수 : 약 88,000
+> #### **학습되는 문서의 수가 증가할수록 성능 향상**
+   + 문서 수 : 약 10,000개
+   ![](images/5.png)
+
+   <br>
+
+   + 문서 수 : 약 88,000개
+   ![   ](images/6.png)
+
+   <br>
+   <br>
+
+  >#### **DM 방식이 DBOW 방식보다 일반적으로 성능이 좋음.**
+   + **DM**
+   ![   ](images/7.png)
+   <br>
+
+   + **DBOW**
+   ![   ](images/8.png)

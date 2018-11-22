@@ -219,7 +219,8 @@ class MKNewsCrawler(object):
             n_days = 크롤링 할 과거 n일
             start_pages = 시작하는 페이지 수
             n_page = 일별 크롤링 할 최대 페이지 수 (한 페이지에 25개의 뉴스)
-
+            
+            return: dictionary, key_ls = [title, text, date, section]
         '''    
 
         queue_ls = []

@@ -474,7 +474,9 @@ class NLP(object):
     
     
     
-    def infer_vectors_with_Doc2Vec(self,doc_ls, steps = 20):
+    def infer_vectors_with_Doc2Vec(self,doc_ls, 
+                                   alpha = 0.05,
+                                   steps = 20):
         
         '''
         Doc2Vec을 사용하여, documents를 vectorize하는 함수입니다.
@@ -490,13 +492,13 @@ class NLP(object):
         
         if type(doc_ls) == str:
             return self.Doc2Vec_model.infer_vector(doc, 
-                                                   alpha = self.Doc2Vec_model.alpha, 
+                                                   alpha = alpha, 
                                                    min_alpha = self.Doc2Vec_model.min_alpha,
                                                    steps = steps)
         
         else:
             return [self.Doc2Vec_model.infer_vector(doc,
-                                                    alpha = self.Doc2Vec_model.alpha,
+                                                    alpha = alpha,
                                                     min_alpha = self.Doc2Vec_model.min_alpha,
                                                     steps = steps) \
                     for doc in doc_ls]

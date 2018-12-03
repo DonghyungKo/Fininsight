@@ -74,11 +74,14 @@ class MKNewsCrawler(object):
         # Requesets와 BeautifulSoup를 사용하여 빠른 크롤링 수행
         # html를 css태그로 찾으면 class로 찾을 때보다 약 2.5배 빠름
         req = requests.get(link)
-        soup = BeautifulSoup(req.content.decode('euc-kr','replace'), 'html.parser', from_encoding='uft-8')
+        soup = BeautifulSoup(req.content.decode('euc-kr','replace'), 'html.parser')
         
         title = soup.select('#top_header > div > div > h1')[0].get_text() 
         text = soup.select('#article_body > div')[0].get_text()
         date = int(soup.find('meta', {'property' :'article:published'})['content'].replace('-',''))
+        
+        # section의 분류의 경우, 
+        # html을 뜯어보면 세부 카테고리가 존재함..
         section = soup.find('meta', {'name' :'classification'})['content']
         
         return title, text, date, section
@@ -96,10 +99,11 @@ class MKNewsCrawler(object):
         for i in range(start_page, start_page + n_pages):
             # 해당 페이지의 html 읽어오기
             req_page = requests.get(base_url + '&page=%s'%i)
-            soup_page = BeautifulSoup(req_page.content.decode('euc-kr','replace'), 'html.parser', from_encoding='uft-8')
+            soup_page = BeautifulSoup(req_page.content.decode('euc-kr','replace'), 'html.parser')
             
             # 개별 뉴스 원문의 링크 수집
             temp_link_ls = [link['href'] for link in soup_page.select('#container_left > div.list_area > dl > dt > a')]
+            
             
             # 개별 링크로 접속하여, 기사 제목과 본문 수집
             temp_title_ls = []
@@ -109,11 +113,11 @@ class MKNewsCrawler(object):
             
             for link in temp_link_ls:
                 try:
-                    title, text, date, section = self._crawl_one_article(link)
-                    temp_title_ls.append(title)
-                    temp_text_ls.append(text)
-                    temp_date_ls.append(date)
-                    temp_section_ls.append(section)
+                    temp_title, temp_text, temp_date, temp_section = self._crawl_one_article(link)
+                    temp_title_ls.append(temp_title)
+                    temp_text_ls.append(temp_text)
+                    temp_date_ls.append(temp_date)
+                    temp_section_ls.append(temp_section)
                 except:
                     pass
                 
@@ -252,7 +256,7 @@ class MKNewsCrawler(object):
 
         for proc in procs:
             proc.join()
-            proc.close()
+            #proc.close()
 
         return total_dict
 

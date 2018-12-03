@@ -70,65 +70,181 @@ class NLP(object):
     def __init__(self):
         self.twit = Okt()
         self.kkma = Kkma()
-        self.stopwords = []
         
-    
+        # 1. 텍스트 클렌징을 위한 정규표현식
+        self.regex_ls = ['\(.+?\)',
+                            '\[.+?\]',
+                            '\<.+?\>',
+                            '◀.+?▶',
+                            '[\{\}\[\]\/?.,;:|\)*~`!^\-_+<>@▲▶◆\#$%┌─┐&\\\=\(\'\"├┼┤│┬└┴┘|ⓒ]',
+                            '[\t\n\r\f\v]',
+                            '[0-9]+[년월분일시조억만천원]*']
+        
+        # 2. 불용어 제거 리스트
+        self.stopword_ls = ['에서','으로','했다','하는','이다','있다','하고','있는','까지','이라고','에는',
+                            '한다','지난','관련','대한','됐다','부터','된다','위해','이번','통해','대해',
+                            '애게','했다고','보다','되는','에서는','있다고','한다고','하기','에도','때문',
+                            '하며','하지','해야','이어','하면','따라','하면서','라며','라고','되고','단지',
+                            '이라는','이나','한다는','있따는','했고','이를','있도록','있어','하게','있다며',
+                            '하기로','에서도','오는','라는','이런','하겠다고','만큼','이는','덧붙였다','있을',
+                            '이고','이었다','이라','있으며','있고','이며','했다며','됐다고','나타났다','한다며',
+                            '하도록','있지만','된다고','되면서','그러면서','그동안','해서는','에게','밝혔다',
+                            '최근', '있다는','보이','되지','정도','지난해','매년','오늘','되며','하기도',
+                            '하겠다는','했다세라',
+                           ]
+        
+        
+        
     
     #####################################################
     ################## Preprocessing ####################
     #####################################################
     
+    
+    # 클렌징을 위해, 추가하고 싶은 정규식을 입력하는 함수
+    def add_regex(self, regex):
+        '''
+        텍스트 클렌징을 위한 정규표현식을 추가하는 함수입니다.
+        
+        inputs
+        regex : str, iterable : 정규표현식 '''
+        
+        if type(regex) == str:
+            self.regex_ls.append(regex)
+        
+        elif type(regex) == list:
+            self.regex_ls += regex
+        return
+   
+    
+    
     # 크롤링한 text에서 불필요한 부분들을 제거하는 함수입니다.
     def _clean_text(self,text):
-        text = re.sub('\(.+?\)', '',string = text)
-        text = re.sub('\[.+?\]', '',string = text)
-        text = re.sub('\<.+?\>', '',string = text)
-        text = re.sub('◀.+?▶', '',string = text)
-        text = re.sub('[\{\}\[\]\/?.,;:|\)*~`!^\-_+<>@▲▶◆\#$%┌─┐&\\\=\(\'\"├┼┤│┬└┴┘|ⓒ]', '' , text) # 특수문자 제거
-        text = re.sub('[\t\n\r\f\v]', ' ' , text)   # 공백 제거
-
-        # 년월일, 시분 제거 및 숫자 제거
-        text = re.sub('[0-9]+[년월분일시조억만천원]*', '',text)
-
-        # 문서의 특성에 맞춰 따로 제거 
-        text = re.sub('기자', '', text)   # 기자라는 단어도 제거
-        text = re.sub('여기를 누르시면 크게 보실 수 있습니다', '', text)   # 여기를 누르시면 크게 보실 수 있습니다 제거
-        text = re.sub('[a-zA-Z]+', '', text)
-        text = re.sub('연합뉴스', '', text)
-        text = re.sub('무단.+금지', '', text)
-
+        for regex in self.regex_ls:
+            text = re.sub(regex, '', text)
         return text
     
     
+    # 복수 개의 문서를 클렌징하는 함수입니다.
     def clean_doc(self, doc_ls):
         return [self._clean_text(doc) for doc in doc_ls]
     
     
-    def remove_stopwords(self, text_ls, stopword_ls):
-        for word in remove_word_ls:
-            text_ls = [text.replace(word,'') for text in text_ls]
-        return text_ls
-
     
-    def _extract_nouns_for_single_doc(self, doc):
-        return [x for x in self.twit.nouns(doc) if len(x) > 1]
-
-    def _extract_morphs_for_single_doc(self, doc):
-        return [x for x in self.twit.morphs(doc) if len(x) > 1]
-
-    
-    
-    def extract_nouns_for_all_document(self,doc_ls):
-        jpype.attachThreadToJVM()
-        clean_doc_ls = self.clean_doc(doc_ls)
-        return [self._extract_nouns_for_single_doc(doc) for doc in clean_doc_ls]
- 
-
-    def extract_morphs_for_all_document(self, doc_ls):
-        jpype.attachThreadToJVM()
-        clean_doc_ls = self.clean_doc(doc_ls)
-        return [self._extract_morphs_for_single_doc(doc) for doc in clean_doc_ls]
+    # 제거하고자 하는 불용어를 추가하는 함수입니다.
+    def add_stopwords(self, stopwords):
+        '''
+        특정 domain에서 사용되는 불용어를 제거 목록에 추가하는 함수입니다.
+        모든 domain에서 사용되는 general한 불용어는 self.stopword_ls에 미리 저장되어 있습니다.
         
+        inputs
+        stopwords: str, iterable'''
+        
+        if type(stopwords) == str:
+            stopwords = [stopwords]
+            
+        self.stopword_ls += stopwords
+        return
+    
+    # 제거하고자 하는 불용어를 목록에서 제거하는 함수입니다.
+    def delete_stopwords(self, stopwords):
+        '''
+        등록된 불용어 가운데, 제거하고 싶은 불용어를 추가하는 함수입니다.
+        
+        inputs
+        stopword : str, iterable'''
+        
+        if type(stopwords) == str:
+            stopwords = [stopwords]
+        
+        self.stopword_ls = [word for word in self.stopword_ls if not word in stopwords] 
+        return
+    
+    
+    # 불용어를 제거하는 함수입니다.
+    def remove_stopwords(self, token_doc_ls):        
+        '''
+        불용어를 제거하는 함수입니다.
+        
+        input
+        token_doc_ls : iterable, token 형태로 구분된 문서가 담긴 list 형식'''
+        
+        total_stopword_set = set(self.stopword_ls)
+        
+        # input이 복수 개의 문서가 담긴 list라면, 개별 문서에 따라 단어를 구분하여 불용어 처리
+        return_ls = []
+        
+        if type(token_doc_ls[0]) == list:    
+            for doc in token_doc_ls:
+                return_ls += [[token for token in doc if not token in total_stopword_set]]
+        
+        elif type(token_doc_ls[0]) == str:
+            return_ls = [token for token in token_doc_ls if not token in total_stopword_set]
+        
+        return return_ls
+    
+    
+    # 한 개의 문서에서 명사(noun)만 추출하는 함수
+    def _extract_nouns_for_single_doc(self, doc):
+        clean_doc = self._clean_text(doc) # 클렌징   
+        token_ls = [x for x in self.twit.nouns(clean_doc) if len(x) > 1] # 토크나이징
+        return self.remove_stopwords(token_ls) # 불용어 제거
+    
+    
+    # 한 개의 문서에서 형태소(morphs)만 추출하는 함수
+    def _extract_morphs_for_single_doc(self, doc):
+        clean_doc = self._clean_text(doc) # 클렌징    
+        token_ls = [x for x in self.twit.morphs(clean_doc) if len(x) > 1] # 토크나이징
+        return self.remove_stopwords(token_ls) # 불용어 제거
+    
+    
+    
+    # 모든 문서에서 명사(nouns)을 추출하는 함수.
+    def extract_nouns_for_all_document(self,doc_ls, stopword_ls = []):
+        '''
+        모든 문서에서 명사를 추출하는 함수입니다.
+        전처리를 적용하고 불용어를 제거한 결과를 반환합니다.
+        
+        input
+        doc_ls : iterable, 원문이 str형태로 저장된 list
+        
+        return
+        전처리 적용, 불용어 제거
+        list : 각각의 문서가 토크나이징 된 결과를 list형태로 반환
+        '''
+        jpype.attachThreadToJVM()
+        # 전처리
+        clean_doc_ls = self.clean_doc(doc_ls)
+        
+        # 명사 추출
+        token_doc_ls = [self._extract_nouns_for_single_doc(doc) for doc in clean_doc_ls]
+        
+        # 불용어 제거
+        return self.remove_stopwords(token_doc_ls, stopword_ls)
+
+    
+    
+    # 모든 문서에서 형태소(morph)를 추출하는 함수.
+    def extract_morphs_for_all_document(self,doc_ls, stopword_ls = []):
+        '''
+        모든 문서에서 형태소(morph)를 추출하는 함수입니다.
+        전처리를 적용하고 불용어를 제거한 결과를 반환합니다.
+        
+        input
+        doc_ls : iterable, 원문이 str형태로 저장된 list
+        
+        return
+        list : 각각의 문서가 토크나이징 된 결과를 list형태로 반환
+        '''
+        jpype.attachThreadToJVM()
+        # 전처리
+        clean_doc_ls = self.clean_doc(doc_ls)
+        
+        # 형태소(morph) 추출
+        token_doc_ls = [self._extract_morphs_for_single_doc(doc) for doc in clean_doc_ls]
+        
+        # 불용어 제거
+        return self.remove_stopwords(token_doc_ls, stopword_ls)
 
     
     def _extract_nouns_for_multiprocessing(self, tuple_ls):
@@ -147,16 +263,18 @@ class NLP(object):
         
                   
         
-    def extract_tokens_for_all_document_FAST_VERSION(self, 
+    def extract_morphs_for_all_document_FAST_VERSION(self, 
                                                      doc_ls, 
-                                                     n_thread = 4,
-                                                     if_morphs = True):
+                                                     n_thread = 4):
         jpype.attachThreadToJVM()
 
         '''
         멀티쓰레딩을 적용하여 속도가 개선된 버전입니다.
-        morphs 추출을 위한 원문을 input으로 받습니다. (전처리 기능 포함)
-        사용하실 쓰레드의 갯수를 input으로 받습니다. [default : 4]
+        문서들을 전처리하고 불용어(stopwords)를 제거한 후, Tokenzing하는 함수입니다.
+        
+        inputs
+        doc_ls : iterable, 원문이 str 형태로 담겨있는 list를 input으로 받습니다.
+        n_thread: int[default : 4], 사용하실 쓰레드의 갯수를 input으로 받습니다. 
         '''
                 
         # 텍스트 클렌징 작업 수행
@@ -171,11 +289,9 @@ class NLP(object):
         thread_ls = []
         
         for tuple_ls in splited_clean_tuple_ls:
-            if if_morphs:
-                temp_thread = Thread(target= lambda q, arg1: q.put(self._extract_morphs_for_multiprocessing(arg1)),  args = (que, tuple_ls))
-            else:
-                temp_thread = Thread(target= lambda q, arg1: q.put(self._extract_nouns_for_multiprocessing(arg1)),  args = (que, tuple_ls))
-                
+            
+            temp_thread = Thread(target= lambda q, arg1: q.put(self._extract_morphs_for_multiprocessing(arg1)),  args = (que, tuple_ls))
+            
             temp_thread.start()
             thread_ls.append(temp_thread)
 
@@ -209,11 +325,18 @@ class NLP(object):
         return result_ls    
     
     
-    def extract_a_equally_splited_batch(self, X_ls, Y_ls, size):
+    def undersample_batch(self, X_ls, Y_ls, size):
+        '''
+        Class Imbalance를 해결하기 위해, undersampling으로 데이터를 추출해주는 함수입니다.
+        입력한 size 수에 맞춰 undersampling을 수행하며,
+        k가 가장 적은 label의 수보다 큰 경우, 크기가 가장 작은 label의 수에 맞춰 undersampling을 수행합니다.
         
-        if type(X_ls) == list:
-            pass
-        else:
+        inputs
+        X_ls : iterable : Feature
+        Y_ls : iterable : Label
+        size : int : unersample size for each label
+        '''
+        if not type(X_ls) == list:
             try: X_ls.tolist()
             except: pass
             
@@ -222,30 +345,73 @@ class NLP(object):
         
         unique_y_ls = list(set(Y_ls))
         
-        temp_dict = {}
-        
+        category_dict = {}
         for x, y in zip(X_ls,Y_ls):
-            try: temp_dict[y] += [x]
-            except: temp_dict[y] = [x]
+            try: category_dict[y] += [x]
+            except: category_dict[y] = [x]
         
         
-        # 한 섹션별로 k개씩 뽑아서 하나의 batch를 만든다.
-        k = size // len(unique_y_ls)
+        # 전체 label의 중, 가장 적은 수
+        k = np.min([len(category_dict[key]) for key in unique_y_ls])
+        
+        if k >= size : k = size
+        else : pass
         
         batch_X_ls = []
         batch_y_ls = []
         
-        for key in temp_dict.keys():
-            try:
-                batch_X_ls += temp_dict[key][:k]
-                batch_y_ls += [key] * len(temp_dict[key][:k])
-            except:
-                batch_X_ls += temp_dict[key]
-                batch_y_ls += [key] * len(temp_dict[key])
-                
+        # undersampling
+        for key in category_dict.keys():
+            batch_X_ls += category_dict[key][:k]
+            batch_y_ls += [key] * k
                 
         return batch_X_ls, batch_y_ls
         
+        
+    def oversample_batch(self, X_ls, Y_ls, size):        
+        '''
+        Class Imbalance를 해결하기 위해, oversampling 으로 데이터를 추출해주는 함수입니다.
+        입력한 size보다 부족한 수만큼, random sampling with replacement로 oversampling을 수행합니다.
+        
+        inputs
+        X_ls : iterable : Feature
+        Y_ls : iterable : Label
+        size : int : unersample size for each label
+        '''
+        
+        if not type(X_ls) == list:
+            try: X_ls.tolist()
+            except: pass
+            
+        unique_y_ls = list(set(Y_ls))
+
+        category_dict = {}
+        for x, y in zip(X_ls,Y_ls):
+            try: category_dict[y] += [x]
+            except: category_dict[y] = [x]
+        
+        
+        # 한 섹션별로 size개씩 뽑아서 하나의 batch를 만든다. (oversampling)
+        
+        batch_X_ls = []
+        batch_y_ls = []
+        
+        # 표본의 수가 충분하면 size개만 추출, 부족하면 oversampling
+        for key in unique_y_ls:
+            if len(category_dict[key]) >= size:
+                batch_X_ls += category_dict[key][:size]
+                batch_y_ls += [key] * size
+            
+            # 부족한 수 만큼 oversample
+            else:
+                oversample_size = size - len(category_dict[key])
+
+                batch_X_ls += category_dict[key]
+                batch_X_ls += list(np.random.choice(category_dict[key], oversample_size, replace = True))
+                
+                batch_y_ls += [key] * size
+                
+        return batch_X_ls, batch_y_ls
     
     
     
@@ -311,8 +477,9 @@ class NLP(object):
         # 각 documents 별로, 2순위 키워드가 담긴 list
         second_keyword_ls = [row.sort_values(ascending =False).index[1] for index, row in self.tfidf_df.iterrows()]
         second_keyword_ls.append(self.tfidf_df.iloc[-1,:].sort_values(ascending =False).index[1])
-    
-        return first_keyword_ls, second_keyword_ls
+        third_keyword_ls.append(self.tfidf_df.iloc[-1,:].sort_values(ascending =False).index[2])
+        
+        return zip(first_keyword_ls, second_keyword_ls, third_keyword_ls)
     
 
     

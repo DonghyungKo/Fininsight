@@ -2,7 +2,6 @@
 import sys
 try: sys.path.remove('/home/donghyungko/anaconda3/lib/python3.7/site-packages')
 except: pass
-import ast
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -60,7 +59,7 @@ class NLP(object):
     '''
     크롤링한 데이터에 대한 텍스트분석을 위한 클래스입니다.
     
-    - 클렌징, 명사&어근 추출 
+    - 텍스트 클렌징, 명사 & 형태소 추출 
     - TF-IDF 행렬 반환, 키워드 추출,
     - Doc2Vec 모델 생성 및 학습,
     - Topic 모델링의 기능을 제공합니다.
@@ -422,7 +421,7 @@ class NLP(object):
     def doc_to_tfidf_df(self, doc_ls, 
                         min_df = 2, 
                         max_df = 0.3,
-                        max_features = 300, 
+                        max_features = 50000, 
                         if_tokenized = True,
                         if_morphs = True,
                        ):
@@ -431,13 +430,21 @@ class NLP(object):
         각 문서에 대한 TF-IDF vector를 pandas_DataFrame으로 반환하는 함수입니다.
         
         Inputs
-         - doc_ls : iterable, list of documents
-         - min_df : int or float, minimum occurance in a doc (at least bigger than min_df) if float, represents minimum ratio 
-         - max_df : int or float, maximum occurange in a doc (at best smaller than max_df)
-         - if_tokenized : Boolean, True if input document is tokenized [default = True]
+         - doc_ls : iterable, 
+             list of documents
+         
+         - min_df : int or float, 
+             minimum occurance in a doc (at least bigger than min_df) if float, represents minimum ratio 
+         
+         - max_df : int or float, 
+             maximum occurange in a doc (at best smaller than max_df)
+         
+         - if_tokenized : Boolean, 
+             True if input document is tokenized [default = True]
+         
          - if_morphs : Boolean, 
-                       True : if not tokenized, tokenized with morphs,
-                       False : if not tokenized, tokenized with nouns.
+             True : if not tokenized, tokenized with morphs,
+             False : if not tokenized, tokenized with nouns.
         
         Return
          - TF-IDF matrix (pandas.DataFrame)
@@ -468,16 +475,19 @@ class NLP(object):
         
         ''' 
         doc_to_tfidf_df 함수를 실행한 후, 사용 가능합니다.
-        TF-IDF 행렬을 기반으로, 1순위, 2순위 키워드를 반환합니다.
+        TF-IDF 행렬을 기반으로, 1,2,3순위 키워드를 반환합니다.
         '''
         
         # 각 documents 별로, 1순위 키워드가 담긴 list
         first_keyword_ls = self.tfidf_df.idxmax(axis=1)
         
         # 각 documents 별로, 2순위 키워드가 담긴 list
-        second_keyword_ls = [row.sort_values(ascending =False).index[1] for index, row in self.tfidf_df.iterrows()]
-        second_keyword_ls.append(self.tfidf_df.iloc[-1,:].sort_values(ascending =False).index[1])
-        third_keyword_ls.append(self.tfidf_df.iloc[-1,:].sort_values(ascending =False).index[2])
+        #second_keyword_ls = [row.sort_values(ascending =False).index[1] for index, row in self.tfidf_df.iterrows()]
+        #third_keyword_ls = [row.sort_values(ascending =False).index[2] for index, row in self.tfidf_df.iterrows()]
+        
+        keyword_ls = [row.sort_values(ascending =False).index[0:2] for index, row in self.tfidf_df.iterrows()]
+        #second_keyword_ls.append(self.tfidf_df.iloc[-1,:].sort_values(ascending =False).index[1])
+        #third_keyword_ls.append(self.tfidf_df.iloc[-1,:].sort_values(ascending =False).index[2])
         
         return zip(first_keyword_ls, second_keyword_ls, third_keyword_ls)
     
@@ -642,8 +652,8 @@ class NLP(object):
     
     
     def infer_vectors_with_Doc2Vec(self,doc_ls, 
-                                   alpha = 0.05,
-                                   steps = 20):
+                                   alpha = 0.1,
+                                   steps = 30):
         
         '''
         Doc2Vec을 사용하여, documents를 vectorize하는 함수입니다.
@@ -657,12 +667,14 @@ class NLP(object):
         
         return_ls = []
         
+        # 문서 1개가 들어온 경우,
         if type(doc_ls) == str:
             return self.Doc2Vec_model.infer_vector(doc, 
                                                    alpha = alpha, 
                                                    min_alpha = self.Doc2Vec_model.min_alpha,
                                                    steps = steps)
         
+        # 복수 개의 문서가 input으로 들어온 경우,
         else:
             return [self.Doc2Vec_model.infer_vector(doc,
                                                     alpha = alpha,

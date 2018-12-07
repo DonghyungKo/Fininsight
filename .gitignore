@@ -1,7 +1,8 @@
-project/Doc2Vec_model/
-project/Data/
-project/.ipynb_checkpoints/
-project/.ipynb
+research/Doc2Vec_model/
+research/Data/
+research/.ipynb_checkpoints/
+research/.ipynb
 .ipynb_checkpoints/
-project/__pycache__/
-
+research/__pycache__/
+research/word2vec_model/
+server/data/

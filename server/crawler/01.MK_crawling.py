@@ -167,16 +167,16 @@ class MKNewsCrawler(object):
 
         for queue in queue_ls:
             temp_result_dict = queue.get()
+            queue.close()
 
-            for key in result_dict.keys():
-                result_dict[key] += temp_result_dict[key]
+        for key in result_dict.keys():
+            result_dict[key] += temp_result_dict[key]
 
         for proc in procs:
             proc.join()
             #proc.close()
 
         return result_dict
-
 
 if __name__=='__main__':
     start_time = time.time()
@@ -187,17 +187,18 @@ if __name__=='__main__':
     year = int(input('크롤링할 년도를 입력하세요 (YYYY) :  '))
     n_batch = int(input('병렬처리할 batch의 수를 입력하세요 (default = 50) : '))
 
-    link_map = mk_crawler.make_link_map(start_num, end_num, year = year)
+    # 크롤링 할 기사가 10,000개 이상인 경우, 10,000개씩 끊은 후, 순차적으로 병렬처리 적용
+    batch_size = 100
 
-    if len(link_map) >= 10000 :
-        # 크롤링 할 기사가 10,000개 이상인 경우, 10,000개씩 끊은 후, 순차적으로 병렬처리 적용
-        for start_idx, end_idx in zip(range(start_num, end_num +1, 10000),
-                                      range(start_num + 10000, end_num +1, 10000)):
-            result_dict = mk_crawler.multiprocess_crawling(link_map[start_idx : end_idx], n_batch = n_batch)
-            pd.DataFrame(result_dict).to_csv('../data/MK_%s_No_%s_to_%s.csv'%(year,start_idx, end_idx))
+    for start_idx, end_idx in zip(range(start_num, end_num +1, batch_size),
+                                  range(start_num + batch_size, end_num +1, batch_size)):
 
-    else :
+        link_map = mk_crawler.make_link_map(start_idx, end_idx, year = year)
+        print('Start Crawling from %s to %s in %s'%(start_idx, end_idx, year))
+
         result_dict = mk_crawler.multiprocess_crawling(link_map, n_batch = n_batch)
-        pd.DataFrame(result_dict).to_csv('../data/MK_%s_No_%s_to_%s.csv'%(year,start_num,end_num))
+        pd.DataFrame(result_dict).to_csv('../data/MK_%s_No_%s_to_%s.csv'%(year,start_idx, end_idx))
+        print('Data Saved as ../data/MK_%s_No_%s_to_%s.csv'%(year, start_idx, end_idx))
+
 
     print('총 소요시간 : %s'%(time.time() - start_time))

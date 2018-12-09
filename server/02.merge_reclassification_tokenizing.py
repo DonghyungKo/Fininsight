@@ -3,28 +3,30 @@ from collections import Counter, defaultdict
 import pickle
 
 
+'''
 def drop_uselsess_data(data):
-    '''
-    기사 제목에 원하지 않는 단어를 포함한 기사를 제거하는 함수입니다.
 
-    inputs
-    =================================
-    data : pandas.DataFrame
-        크롤링을 마친 raw data 상태의 DataFrame
-    '''
+    #기사 제목에 원하지 않는 단어를 포함한 기사를 제거하는 함수입니다.
+    #
+    #inputs
+    #=================================
+    #data : pandas.DataFrame
+    #    크롤링을 마친 raw data 상태의 DataFrame
+
 
     # 제거 목록 키워드 리스트
-    useless_keyword_ls = ['신년사]','[인사]','[포토]','포토','MK포토']
+    useless_keyword_ls = ['신년사','[인사]','[포토]','포토','MK포토']
 
-    index_ls = data.index
+    index_ls = data.index.tolist()
     title_ls = data['Title'].tolist()
 
     drop_index_ls = []
+
     for idx, title in zip(index_ls, title_ls):
         if any(keyword in title for keyword in useless_keyword_ls):
             drop_index_ls.append(idx)
     return data.drop(drop_index_ls)
-
+'''
 
 def reclassify_categories(data, input_category, output_category):
     '''
@@ -221,30 +223,42 @@ def drop_categories(data, drop_category_ls):
     return data.loc[data['Section'].isin(useful_category_ls)]
 
 
-def main(data, stock_name_ls):
+def main():
     # Data Loading
     # 10,000개씩 쪼개진 데이터 불러서 합침
-    while True:
-        total_dict = defaultdict(lambda : [])
-        try:
-            for start in enumeate(0,1000000, 10000):
-                temp_dict = pd.read_csv('data/raw/MK_2018_No_%s_to_%s.csv'%(start, start + 10000)).to_dict()
-                for key in temp_dict.keys():
-                     total_dict[key] += temp_dict[key]
-        except:
-            break
+    print('Data Loading...')
+
+    total_dict = defaultdict(lambda : [])
+
+    for year in [2018, 2017, 2016]:
+        for start,end in zip(range(0,100), range(1,101)):
+            try:
+                temp_df = pd.read_csv(open('data/raw/MK_%s_No_%s_to_%s.csv'%(year, start*10000, end*10000),'r'), encoding='utf-8', engine='c')
+
+                for column in temp_df.columns:
+                    total_dict[column] += temp_df[column].tolist()
+
+                if end % 10 == 0:
+                    print('%s년도의 %s번째 batch를 불러왔습니다.'%(year,end))
+
+            except:
+                print(start * 10000, end * 10000)
+                break
+
+    data = pd.DataFrame(total_dict)
 
     # 상장된 기업명이 담긴 list 파일 load
     with open('stock_name_ls.pickle', 'rb') as f:
         stock_name_ls = pickle.load(f)
 
     print('Data Loaded')
-
-
+    print(data.head())
+    print('Num of Data : %s'%len(data))
+    print('==========================================')
 
     # 카테고리 정리, 통합
-
-    data = drop_uselsess_data(data)
+    print('Category reclassifying & merging')
+    #data = drop_uselsess_data(data)
     data = reclassify_categories(data,
                                 ['tv_broadcasting', 'entertainment_topic', 'broadcasting', 'hot_issue', 'music', 'overseas_etn'],
                                 'entertainment')
@@ -264,6 +278,12 @@ def main(data, stock_name_ls):
     print('===============================================')
     print('Category Preprocessed & Merged')
 
+    # 결과 저장
     data.to_csv('data/data_merged.csv', index = False)
     print('===============================================')
     print('Finished : Data Saved')
+    print('Num of Data: %s'%len(data))
+
+
+if __name__ == '__main__':
+    main()

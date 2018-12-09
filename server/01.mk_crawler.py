@@ -220,8 +220,8 @@ if __name__=='__main__':
         print('Start Crawling from page %s to %s in %s'%(start_idx, end_idx, year))
 
         result_dict = mk_crawler.multiprocess_crawling(link_map, n_batch = n_batch)
-        pd.DataFrame(result_dict).to_csv('../data/raw/MK_%s_No_%s_to_%s.csv'%(year,start_idx, end_idx), index = False)
-        print('Data Saved as ../data/raw/MK_%s_No_%s_to_%s.csv'%(year, start_idx, end_idx))
+        pd.DataFrame(result_dict).to_csv('data/raw/MK_%s_No_%s_to_%s.csv'%(year,start_idx, end_idx), index = False)
+        print('Data Saved as data/raw/MK_%s_No_%s_to_%s.csv'%(year, start_idx, end_idx))
         print('===========================================================')
 
 

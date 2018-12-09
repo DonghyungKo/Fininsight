@@ -71,28 +71,29 @@ class NLP(object):
         self.kkma = Kkma()
         
         # 1. 텍스트 클렌징을 위한 정규표현식
-        self.regex_ls = ['\(.+?\)',
-                            '\[.+?\]',
-                            '\<.+?\>',
-                            '◀.+?▶',
-                            '=.+=',
-                            '[a-zA-Z0-9]+@[a-zA-Z]+\.[a-zA-Z]+'
-                            '[\{\}\[\]\/?.,;:|\)*~`!^\-_+<>@▲▶◆\#$%┌─┐&\\\=\(\'\"├┼┤│┬└┴┘|ⓒ]',
-                            '[\t\n\r\f\v]',
-                            '[\xa0]',
-                            '[0-9]+[년월분일시조억만천원]*']
+        self.regex_ls = ['[\t\n\r\f\v]', #공백 제거,
+                          '\(.+?\)', '\[.+?\]', '\<.+?\>',  '◀.+?▶',  '=.+=', #특수문자 사이에 오는 단어 제거
+                          '(?<=▶).+', '(?<=▷).+', '(?<=※).+', #특수문자 다음으로 오는 단어 제거
+                         '(?<=\xa0).+', # \xa0(증권 기사) 다음으로 오는 단어 제거
+                         '(?<=\Copyrights).+' # Copyrights 다음에 오는 기사 제거
+                         '[가-힣]+ 기자', #기자 제거
+                         '[a-zA-Z0-9]+@[a-zA-Z]+\.[a-zA-Z]+\.?[a-z]?', #이메일 제거
+                         '[\{\}\[\]\/?.,;·:“‘|\)*~`!^\-_+<>@▲▶◆\#$%┌─┐&\\\=\(\'\"├┼┤│┬└┴┘|ⓒ]', #특수문자 제거
+                         '[0-9]+[년월분일시조억만천원]*']
         
         # 2. 불용어 제거 리스트
-        self.stopword_ls = ['에서','으로','했다','하는','이다','있다','하고','있는','까지','이라고','에는',
+        self.stopword_ls = ['Copyrights','xa0',
+                            '에서','으로','했다','하는','이다','있다','하고','있는','까지','이라고','에는',
                             '한다','지난','관련','대한','됐다','부터','된다','위해','이번','통해','대해',
                             '애게','했다고','보다','되는','에서는','있다고','한다고','하기','에도','때문',
                             '하며','하지','해야','이어','하면','따라','하면서','라며','라고','되고','단지',
                             '이라는','이나','한다는','있따는','했고','이를','있도록','있어','하게','있다며',
                             '하기로','에서도','오는','라는','이런','하겠다고','만큼','이는','덧붙였다','있을',
                             '이고','이었다','이라','있으며','있고','이며','했다며','됐다고','나타났다','한다며',
-                            '하도록','있지만','된다고','되면서','그러면서','그동안','해서는','에게','밝혔다',
-                            '최근', '있다는','보이','되지','정도','지난해','매년','오늘','되며','하기도',
-                            '하겠다는','했다세라','올해', '바로', '바랍니다', '함께','이후',
+                            '하도록','있지만','된다고','되면서','그러면서','그동안','해서는','에게','밝혔다', '한편',
+                            '최근', '있다는','보이','되지','정도','지난해','매년','오늘','되며','하기도', '지난달',
+                            '하겠다는','했다세라','올해', '바로', '바랍니다', '함께','이후','따르면','같은','오후','모두',
+                            '로부터','전날','면서','했다는','그리고','있던'
                            ]
         
         
@@ -121,7 +122,7 @@ class NLP(object):
     
     
     # 크롤링한 text에서 불필요한 부분들을 제거하는 함수입니다.
-    def _clean_text(self,text):
+    def clean_text(self,text):
         for regex in self.regex_ls:
             text = re.sub(regex, '', text)
         return text
@@ -129,7 +130,7 @@ class NLP(object):
     
     # 복수 개의 문서를 클렌징하는 함수입니다.
     def clean_doc(self, doc_ls):
-        return [self._clean_text(doc) for doc in doc_ls]
+        return [self.clean_text(doc) for doc in doc_ls]
     
     
     
@@ -148,20 +149,6 @@ class NLP(object):
         self.stopword_ls += stopwords
         return
     
-    # 제거하고자 하는 불용어를 목록에서 제거하는 함수입니다.
-    def delete_stopwords(self, stopwords):
-        '''
-        등록된 불용어 가운데, 제거하고 싶은 불용어를 추가하는 함수입니다.
-        
-        inputs
-        stopword : str, iterable'''
-        
-        if type(stopwords) == str:
-            stopwords = [stopwords]
-        
-        self.stopword_ls = [word for word in self.stopword_ls if not word in stopwords] 
-        return
-    
     
     # 불용어를 제거하는 함수입니다.
     def remove_stopwords(self, token_doc_ls):        
@@ -169,33 +156,37 @@ class NLP(object):
         불용어를 제거하는 함수입니다.
         
         input
-        token_doc_ls : iterable, token 형태로 구분된 문서가 담긴 list 형식'''
+        token_doc_ls : str, iterable 
+        token 형태로 구분된 문서가 담긴 list 형식'''
         
         total_stopword_set = set(self.stopword_ls)
         
         # input이 복수 개의 문서가 담긴 list라면, 개별 문서에 따라 단어를 구분하여 불용어 처리
         return_ls = []
         
-        if type(token_doc_ls[0]) == list:    
-            for doc in token_doc_ls:
-                return_ls += [[token for token in doc if not token in total_stopword_set]]
-        
-        elif type(token_doc_ls[0]) == str:
-            return_ls = [token for token in token_doc_ls if not token in total_stopword_set]
-        
+        if token_doc_ls:
+            if type(token_doc_ls[0]) == list:    
+                for doc in token_doc_ls:
+                    return_ls += [[token for token in doc if not token in total_stopword_set]]
+
+            elif type(token_doc_ls[0]) == str:
+                return_ls = [token for token in token_doc_ls if not token in total_stopword_set]
+        else:
+            return_ls  = []
+            
         return return_ls
     
     
     # 한 개의 문서에서 명사(noun)만 추출하는 함수
     def _extract_nouns_for_single_doc(self, doc):
-        clean_doc = self._clean_text(doc) # 클렌징   
+        clean_doc = self.clean_text(doc) # 클렌징   
         token_ls = [x for x in self.twit.nouns(clean_doc) if len(x) > 1] # 토크나이징
         return self.remove_stopwords(token_ls) # 불용어 제거
     
     
     # 한 개의 문서에서 형태소(morphs)만 추출하는 함수
     def _extract_morphs_for_single_doc(self, doc):
-        clean_doc = self._clean_text(doc) # 클렌징    
+        clean_doc = self.clean_text(doc) # 클렌징    
         token_ls = [x for x in self.twit.morphs(clean_doc) if len(x) > 1] # 토크나이징
         return self.remove_stopwords(token_ls) # 불용어 제거
     

@@ -21,6 +21,7 @@ class MKNewsCrawler(object):
                         'Text' : [],
                         'Date' : [],
                         'Section' : [],
+                        'Keywords' : [],
                         'Link' : [],
                        })
 
@@ -79,9 +80,20 @@ class MKNewsCrawler(object):
             # section의 분류의 경우,
             # html을 뜯어보면 세부 카테고리가 존재함..
             section = soup.find('meta', {'name' :'classification'})['content']
-            return title, text, date, section, link
+            # classification이 없는 경우 (nan인 경우)
+            if not section:
+                section = ' '
+
+            # keywords는 메타 태그에 없는 경우도 존재하므로, 예외 처리 적용
+            try:
+                keyword = soup.find('meta', {'name' :'keywords'})['content']
+            except:
+                keyword = ' '
+
+            return title, text, date, section, keyword, link
+
         except:
-            return '','','','',''
+            return '','','','','',''
 
 
 
@@ -105,25 +117,26 @@ class MKNewsCrawler(object):
 
         # 링크 맵을 돌면서 기사를 하나씩 수집
         for link in link_map:
-            title, text, date, section, link = self._crawl_one_article(link)
+            title, text, date, section, keyword, link = self._crawl_one_article(link)
 
             if not title == '':
                 temp_dict['Title'].append(title)
                 temp_dict['Text'].append(text)
                 temp_dict['Date'].append(date)
                 temp_dict['Section'].append(section)
+                temp_dict['Keywords'].append(keyword)
                 temp_dict['Link'].append(link)
 
         # 병렬처리를 위해 queue에 쌓음
         if queue:
             queue.put(temp_dict)
 
-        print('batch done!')
+        #print('batch done!')
         return temp_dict
 
 
 
-    def multiprocess_crawling(self, link_map, n_batch = 30):
+    def multiprocess_crawling(self, link_map, n_batch = 50):
         '''
         입력받은 link_map에서 개별 링크에서 정보를 수집하는 함수입니다.
         병렬처리가 적용되었습니다. [os.core_count() * 2]
@@ -142,13 +155,20 @@ class MKNewsCrawler(object):
         queue_ls = []
         procs = []
 
-        result_dict = self.item.copy()
+        result_dict = OrderedDict(\
+                       {'Title' : [],
+                        'Text' : [],
+                        'Date' : [],
+                        'Section' : [],
+                        'Keywords' : [],
+                        'Link' : [],
+                       })
+
 
         if n_batch < len(link_map):
             batch_size = len(link_map)// (n_batch)
         else:
             batch_size = 1
-        print('batch size : %s'%batch_size)
 
         # process에 작업들을 할당
         for i, idx in enumerate(range(0, len(link_map), batch_size)):
@@ -168,15 +188,17 @@ class MKNewsCrawler(object):
         for queue in queue_ls:
             temp_result_dict = queue.get()
             queue.close()
+            del queue
 
-        for key in result_dict.keys():
-            result_dict[key] += temp_result_dict[key]
+            for key in result_dict.keys():
+                result_dict[key] += temp_result_dict[key]
 
         for proc in procs:
             proc.join()
-            #proc.close()
+            del proc
 
         return result_dict
+
 
 if __name__=='__main__':
     start_time = time.time()
@@ -188,17 +210,19 @@ if __name__=='__main__':
     n_batch = int(input('병렬처리할 batch의 수를 입력하세요 (default = 50) : '))
 
     # 크롤링 할 기사가 10,000개 이상인 경우, 10,000개씩 끊은 후, 순차적으로 병렬처리 적용
-    batch_size = 100
+    batch_size = 10000
 
     for start_idx, end_idx in zip(range(start_num, end_num +1, batch_size),
                                   range(start_num + batch_size, end_num +1, batch_size)):
 
         link_map = mk_crawler.make_link_map(start_idx, end_idx, year = year)
-        print('Start Crawling from %s to %s in %s'%(start_idx, end_idx, year))
+        print('===========================================================')
+        print('Start Crawling from page %s to %s in %s'%(start_idx, end_idx, year))
 
         result_dict = mk_crawler.multiprocess_crawling(link_map, n_batch = n_batch)
-        pd.DataFrame(result_dict).to_csv('../data/MK_%s_No_%s_to_%s.csv'%(year,start_idx, end_idx))
-        print('Data Saved as ../data/MK_%s_No_%s_to_%s.csv'%(year, start_idx, end_idx))
+        pd.DataFrame(result_dict).to_csv('../data/raw/MK_%s_No_%s_to_%s.csv'%(year,start_idx, end_idx), index = False)
+        print('Data Saved as ../data/raw/MK_%s_No_%s_to_%s.csv'%(year, start_idx, end_idx))
+        print('===========================================================')
 
 
     print('총 소요시간 : %s'%(time.time() - start_time))

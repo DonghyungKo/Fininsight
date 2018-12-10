@@ -93,11 +93,11 @@ class NLP(object):
     '''
 
 
-    def __init__(self):
+    def __init__(self):    
         '''
         전처리를 위한 함수들이 저장된 클래스입니다.
         '''
-
+        
         self.twit = Okt()
         self.kkma = Kkma()
 
@@ -434,6 +434,10 @@ class NLP(object):
                 batch_y_ls += [key] * size
 
         return batch_X_ls, batch_y_ls
+
+
+
+
 
 
 

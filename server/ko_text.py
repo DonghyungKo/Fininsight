@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import os
 import sys
 try: sys.path.remove('/home/donghyungko/anaconda3/lib/python3.7/site-packages')
 except: pass
@@ -22,29 +23,23 @@ except: pass
 
 import multiprocessing
 import time
+import numpy as np
 import pandas as pd
 import re
 import datetime
-from collections import OrderedDict
+from collections import OrderedDict, Counter, defaultdict
 import konlpy
-
 import jpype
-
 from konlpy.tag import *
-from sklearn.feature_extraction.text import TfidfVectorizer
-from collections import Counter
 
 import logging
 from gensim.models.doc2vec import Doc2Vec, TaggedDocument
 
 from collections import namedtuple
 from sklearn.linear_model import LogisticRegression
-
-import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics import accuracy_score
 
-
-import os
 from multiprocessing import Process,Queue, Pool
 import functools
 from threading import Thread
@@ -55,43 +50,56 @@ from konlpy import jvm
 
 
 
-def load_data(path_to_file):
-    data = pd.read_csv(open(path_to_file,'r'), encoding='utf-8', engine='c')
+def load_data(path_to_file, usecols = ''):
+    '''
+    data를 읽어오는 함수입니다.
 
-    # Token 칼럼이 존재하는 경우
-    if 'Token' in data.columns:
-        # 용량을 줄이기 위해 '단어 단어' 꼴로 묶어둔 token을 ['단어', '단어']의 리스트 형태로 풀기
-        data['Token'] = [token.split() for token in data['Token']]
+    '단어 단어'형태로 Tokenize된 문서의 경우,
+    자동으로 ['단어' '단어' '단어'] 형태로 split을 해줍니다.
 
-    print('Data Loaded')
-    return data
+    inputs
+    =============================
+    path_to_file : str
+        파일이 저장된 위치
+
+    usecols : list
+        사용할 columns의 목록이 담긴 리스트
+    '''
+    print('==================================================')
+    print('Data Loading : %s'%path_to_file)
+    try:
+        # usecols 파라미터를 받음
+        if usecols:
+            data = pd.read_csv(open(path_to_file,'r'), encoding='utf-8', engine='c', usecols = usecols)
+        else:
+            data = pd.read_csv(open(path_to_file,'r'), encoding='utf-8', engine='c')
+
+        # Token 칼럼이 존재하는 경우
+        if 'Token' in data.columns:
+            # 용량을 줄이기 위해 '단어 단어' 꼴로 묶어둔 token을 ['단어', '단어']의 리스트 형태로 풀기
+            data['Token'] = [token.split() for token in data['Token']]
+        print('Data Loaded')
+
+        return data
+
+    except:
+        print('%s가 존재하지 않습니다.'%path_to_file)
 
 
-def save_data(data, path_to_file):
+def save_data(data, path_to_file, index = False):
     # Token 칼럼이 존재하는 경우
     if 'Token' in data.columns:
         # 용량을 줄이기 위해 ['단어', '단어']형태의 토큰을 '단어 단어' 형태로 묶기
         data['Token'] = [' '.join(doc) for doc in data['Token'].tolist()]
 
-    data.to_csv(path_to_file, index = False)
+    data.to_csv(path_to_file, index = index)
     print('Data Saved')
     return
 
 
 
 
-
-
-
-
-
-
 class NLP(object):
-
-    '''
-    전처리를 위한 함수들이 저장된 클래스입니다.
-    '''
-
 
     def __init__(self):
         '''
@@ -106,11 +114,12 @@ class NLP(object):
                           '\(.+?\)', '\[.+?\]', '\<.+?\>',  '◀.+?▶',  '=.+=', #특수문자 사이에 오는 단어 제거
                           '(?<=▶).+', '(?<=▷).+', '(?<=※).+', #특수문자 다음으로 오는 단어 제거
                          '(?<=\xa0).+', # \xa0(증권 기사) 다음으로 오는 단어 제거
-                         '(?<=\Copyrights).+' # Copyrights 다음에 오는 기사 제거
-                         '[가-힣]+ 기자', #기자 제거
-                         '[a-zA-Z0-9]+@[a-zA-Z]+\.[a-zA-Z]+\.?[a-z]?', #이메일 제거
+                         '(?<=\Copyrights).+', # Copyrights 다음에 오는 기사 제거
+                         '[가-힣]+ [기자]', #기자 제거
+                         '[\w]+@[a-zA-Z]+\.[a-zA-Z]+[\.]?[a-z]*', #이메일 제거
                          '[\{\}\[\]\/?.,;·:“‘|\)*~`!^\-_+<>@▲▶◆\#$%┌─┐&\\\=\(\'\"├┼┤│┬└┴┘|ⓒ]', #특수문자 제거
-                         '[0-9]+[년월분일시조억만천원]*']
+                         '[0-9]+[년월분일시조억만천원]*' ,
+                        ]
 
         # 2. 불용어 제거 리스트
         self.stopword_ls = ['Copyrights','xa0', 'googletagdisplay', 'windowjQuery', 'documentwrite'
@@ -126,7 +135,6 @@ class NLP(object):
                             '하겠다는','했다세라','올해', '바로', '바랍니다', '함께','이후','따르면','같은','오후','모두',
                             '로부터','전날','면서','했다는','그리고','있던'
                            ]
-
 
 
 
@@ -151,11 +159,13 @@ class NLP(object):
         return
 
 
-
     # 크롤링한 text에 정규표현식을 적용하는 함수입니다.
     def clean_text(self,text):
-        for regex in self.regex_ls:
-            text = re.sub(regex, '', text)
+        try:
+            for regex in self.regex_ls:
+                text = re.sub(regex, '', text)
+        except:
+            text = ' '
         return text
 
     # 복수 개의 문서를 클렌징하는 함수입니다.
@@ -166,13 +176,13 @@ class NLP(object):
     # 제거하고자 하는 불용어를 추가하는 함수입니다.
     def add_stopwords(self, stopwords):
         '''
-        특정 domain에서 사용되는 불용어를 제거 목록에 추가하는 함수입니다.
+        특정 domain에서 사용되는 불00용어를 제거 목록에 추가하는 함수입니다.
         모든 domain에서 사용되는 general한 불용어는 self.stopword_ls에 미리 저장되어 있습니다.
 
         inputs
         stopwords: str, iterable
+            제거 대상 불용어
         '''
-
         if type(stopwords) == str:
             stopwords = [stopwords]
 
@@ -268,21 +278,19 @@ class NLP(object):
         # 불용어 제거
         return self.remove_stopwords(token_doc_ls, stopword_ls)
 
-
+    # 토크나이징을 병렬처리 하는데 사용되는 함수
     def _extract_nouns_for_multiprocessing(self, tuple_ls):
         jpype.attachThreadToJVM()
         # 멀티프로세싱의 경우, 병렬처리시 순서가 뒤섞이는 것을 방지하기위해,
         # [(idx, doc)] 형태의 tuple이 들어온다.
         return [(idx, self._extract_nouns_for_single_doc(doc)) for idx, doc in tuple_ls]
 
-
+    # 토크나이징을 병렬처리 하는데 사용되는 함수
     def _extract_morphs_for_multiprocessing(self, tuple_ls):
         jpype.attachThreadToJVM()
         # 멀티프로세싱의 경우, 병렬처리시 순서가 뒤섞이는 것을 방지하기위해,
         # [(idx, doc)] 형태의 tuple이 들어온다.
         return [(idx, self._extract_morphs_for_single_doc(doc)) for idx, doc in tuple_ls]
-
-
 
 
     def extract_morphs_for_all_document_FAST_VERSION(self,
@@ -334,8 +342,6 @@ class NLP(object):
         return [token for idx, token in sorted(zip(index_ls, token_ls))]
 
 
-
-
     def split_list(self, ls, n):
         '''
         병렬처리를 위해, 리스트를 원하는 크기(n)로 분할해주는 함수입니다.
@@ -354,9 +360,14 @@ class NLP(object):
         k가 가장 적은 label의 수보다 큰 경우, 크기가 가장 작은 label의 수에 맞춰 undersampling을 수행합니다.
 
         inputs
-        X_ls : iterable : Feature
-        Y_ls : iterable : Label
-        size : int : unersample size for each label
+        X_ls : iterable
+            Feature
+
+        Y_ls : iterable
+            Label
+
+        size : int
+            undersample size for each label
         '''
         if not type(X_ls) == list:
             try: X_ls.tolist()
@@ -396,9 +407,14 @@ class NLP(object):
         입력한 size보다 부족한 수만큼, random sampling with replacement로 oversampling을 수행합니다.
 
         inputs
-        X_ls : iterable : Feature
-        Y_ls : iterable : Label
-        size : int : unersample size for each label
+        X_ls : iterable
+            Feature
+
+        Y_ls : iterable
+            Label
+
+        size : int
+            undersample size for each label
         '''
 
         if not type(X_ls) == list:
@@ -416,8 +432,8 @@ class NLP(object):
         # 한 섹션별로 size개씩 뽑아서 하나의 batch를 만든다. (oversampling)
 
         batch_X_ls = []
-        batch_y_ls = []
 
+        batch_y_ls = []
         # 표본의 수가 충분하면 size개만 추출, 부족하면 oversampling
         for key in unique_y_ls:
             if len(category_dict[key]) >= size:
@@ -445,7 +461,7 @@ class D2V(object):
     ##################   Doc2Vec   ######################
     #####################################################
 
-    def __init__(self, path_to_model):
+    def __init__(self, path_to_model = ''):
         '''
         기존에 학습된 모델을 불러옵니다.
 
@@ -524,17 +540,16 @@ class D2V(object):
         Doc2Vec 모델을 생성 혹은 Load한 다음 작업으로, Doc2Vec을 build하고 학습을 수행합니다.
 
         Inputs
-         - train_doc_ls : iterable, documents(tokenized or not tokenized)
-         - train_tag_ls : iterable, tags of each documents
-         - n_epochs : int, numbers of iteration
-         - if_morphs : 원문에 대한 tokenizing을 수행할 때, morphs를 추출 (defaulf = True),
-         - if_tokenized : Boolean, True if input document is tokenized [default = True]
-         - if_morphs : Boolean,
-                       True : if not tokenized, tokenized with morphs,
-                       False : if not tokenized, tokenized with nouns.
+        =================================
+        train_doc_ls : iterable,
+            documents(tokenized or not tokenized)
 
-        Return
-         - None
+        train_tag_ls : iterable,
+            tags of each documents
+
+        n_epochs : int
+            numbers of iteration
+
         '''
 
 
@@ -623,7 +638,11 @@ class D2V(object):
         Doc2Vec을 사용하여, documents를 vectorize하는 함수입니다.
 
         Inputs
-         - doc_ls : iterable or str, array of tokenized documents
+        doc_ls : iterable or str
+            array of tokenized documents
+
+        alpha : int
+        steps : int
 
         return
          - matrix of documents inferred by Doc2Vec

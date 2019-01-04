@@ -473,7 +473,7 @@ class D2V(object):
         try:
             self.Doc2Vec_model = Doc2Vec.load(path_to_model)
             print('학습된 모델을 성공적으로 불러왔습니다.')
-            return  self.Doc2Vec_model
+            return
         except:
             print('모델을 불러오지 못하였습니다.')
             print('새로운 모델을 생성해주시기 바랍니다.')
@@ -591,14 +591,24 @@ class D2V(object):
         built된 Doc2Vec 모델에 추가적인 학습을 수행합니다.
 
         Inputs
-         - train_doc_ls : iterable, documents(tokenized or not tokenized)
-         - train_tag_ls : iterable, tags of each documents
-         - n_epochs : int, numbers of iteration
-         - if_morphs : 원문에 대한 tokenizing을 수행할 때, morphs를 추출 (defaulf = True),
-         - if_tokenized : Boolean, True if input document is tokenized [default = True]
-         - if_morphs : Boolean,
-                       True : if not tokenized, tokenized with morphs,
-                       False : if not tokenized, tokenized with nouns.
+         - train_doc_ls : iterable,
+            documents(tokenized or not tokenized)
+
+         - train_tag_ls : iterable,
+            tags of each documents
+
+         - n_epochs : int
+            numbers of iteration
+
+         - if_morphs :  boolean
+            원문에 대한 tokenizing을 수행할 때, morphs를 추출 (defaulf = True),
+
+         - if_tokenized : boolean
+            True if input document is tokenized [default = True]
+
+         - if_morphs : boolean,
+            True : if not tokenized, tokenized with morphs,
+            False : if not tokenized, tokenized with nouns.
 
         Return
          - None
@@ -629,13 +639,16 @@ class D2V(object):
         return
 
 
-
-    def infer_vectors_with_Doc2Vec(self,doc_ls,
-                                   alpha = 0.1,
-                                   steps = 30):
+    # 문서 벡터를 추정하기 위한 함수 (병렬처리에 사용)
+    def _infer_vector(self,
+            doc_ls,
+            alpha=0.1,
+            steps=30,
+            queue = False):
 
         '''
         Doc2Vec을 사용하여, documents를 vectorize하는 함수입니다.
+        본 함수는 병렬처리를 위해 사용합니다.
 
         Inputs
         doc_ls : iterable or str
@@ -647,12 +660,11 @@ class D2V(object):
         return
          - matrix of documents inferred by Doc2Vec
         '''
-
         return_ls = []
 
         # 문서 1개가 들어온 경우,
         if type(doc_ls) == str:
-            return self.Doc2Vec_model.infer_vector(doc,
+            return self.Doc2Vec_model.infer_vector(doc_ls,
                                                    alpha = alpha,
                                                    min_alpha = self.Doc2Vec_model.min_alpha,
                                                    steps = steps)
@@ -665,6 +677,51 @@ class D2V(object):
                                                     steps = steps) \
                     for doc in doc_ls]
 
+
+    ###################################################
+    ################### 병렬처리 적용 ####################
+    ###################################################
+    def _multiprocessing_queue_put(self, func, queue, **kwargs):
+        queue.put(func(**kwargs))
+        return
+
+
+    def infer_vectors_multiprocessing(self, doc_ls):
+        queue_ls = []
+        procs = []
+        result_ls = []
+        batch_size = len(doc_ls) // 10
+
+        # process에 작업들을 할당
+        for i, idx in enumerate(range(0, len(doc_ls), batch_size)):
+            try:
+                batch_ls = doc_ls[idx : idx + batch_size]
+            except:
+                batch_ls = doc_ls[idx :]
+
+            queue_ls.append(Queue())
+            proc = Process(
+                    target= self._multiprocessing_queue_put,
+                    kwargs = {
+                        'func' : self._infer_vector,
+                        'queue' : queue_ls[i],
+                        'doc_ls' : batch_ls})
+
+            procs.append(proc)
+            proc.start()
+
+        for queue in queue_ls:
+            temp_result_ls = queue.get()
+            queue.close()
+            del queue
+
+            result_ls += temp_result_ls
+
+        for proc in procs:
+            proc.join()
+            del proc
+
+        return np.array(result_ls)
 
 
 

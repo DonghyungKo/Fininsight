@@ -6,3 +6,4 @@ research/.ipynb
 research/__pycache__/
 research/word2vec_model/
 server/data/
+server/Doc2Vec_model

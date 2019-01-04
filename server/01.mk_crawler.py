@@ -181,9 +181,9 @@ class MKNewsCrawler(object):
 
             queue_ls.append(Queue())
             proc = Process(target=functools.partial(
-                                                    self.crawl_process,
-                                                    queue = queue_ls[i],
-                                                    link_map= batch_link_map))
+                                                self.crawl_process,
+                                                queue = queue_ls[i],
+                                                link_map= batch_link_map))
             procs.append(proc)
             proc.start()
 

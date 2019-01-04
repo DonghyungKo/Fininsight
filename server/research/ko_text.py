@@ -473,7 +473,7 @@ class D2V(object):
         try:
             self.Doc2Vec_model = Doc2Vec.load(path_to_model)
             print('학습된 모델을 성공적으로 불러왔습니다.')
-            return  self.Doc2Vec_model
+            return
         except:
             print('모델을 불러오지 못하였습니다.')
             print('새로운 모델을 생성해주시기 바랍니다.')
@@ -638,7 +638,11 @@ class D2V(object):
         Doc2Vec을 사용하여, documents를 vectorize하는 함수입니다.
 
         Inputs
-         - doc_ls : iterable or str, array of tokenized documents
+        doc_ls : iterable or str
+            array of tokenized documents
+
+        alpha : int
+        steps : int
 
         return
          - matrix of documents inferred by Doc2Vec

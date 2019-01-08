@@ -7,3 +7,7 @@ research/__pycache__/
 research/word2vec_model/
 server/data/
 server/Doc2Vec_model
+server/process/Word2Vec_model/
+server/process/Doc2Vec_model/
+NLP_workshop/
+process/
